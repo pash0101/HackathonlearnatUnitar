@@ -14,7 +14,6 @@ import random
 import nltk
 # nltk.download('punkt')
 import numpy as np
-import mysql.connector
 '''
     RECOMMENDATION SYSTEM LIBRARIES
 '''
@@ -30,7 +29,8 @@ from keras.models import load_model
 
 from nltk.stem.lancaster import LancasterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
-
+from connect import connection
+		
 app = Flask(__name__)
 
 # Config MySQL
@@ -38,7 +38,7 @@ app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'root'
 app.config['MYSQL_DB'] = 'indus'
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+#app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 # Config Paths
 app.config['UPLOAD_PATH'] = "static/uploads/"
@@ -49,29 +49,7 @@ ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 
 # Init MySQL
 mysql = MySQL(app)
-@app.route('/shop/men')
-def test_db_connection():
-    try:
-        mydb = mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="root"
-        )
-        mycursor = mydb.cursor()
-        mycursor.execute("SHOW DATABASES") 
-        # Create a cursor and execute a simple query
-        with app.app_context():
-            cursor = mysql.connection.cursor()
-            cursor.execute('SELECT 1')
-            result = cursor.fetchone()
-            cursor.close()
-        # If the query was successful, return a success message
-            if result:
-                return jsonify({'message': 'Database connection successful!'})
 
-    except Exception as e:
-        # If there was an error, return an error message
-        return jsonify({'error': f'Database connection error: {str(e)}'})
 
 '''
     ============================================
@@ -143,18 +121,19 @@ def about():
 def red():
     return redirect(url_for('/'))
 
-@app.route('/shopss')
+@app.route('/shop')
 def shop():
     limit = 12
     page = request.args.get('page', 1, type=int)
     
-    cur = mysql.connection.cursor()
+    #cur = conn.cursor()
+    cur, conn = connection()
     query = "SELECT COUNT(*) FROM products"
     cur.execute(query)
     row = cur.fetchone()
     
-    product_count = row['COUNT(*)']
-
+    #product_count = row['COUNT(*)']
+    product_count = row[0]
     # for calculation of no of pages for pagination purpose
     num_of_pages = product_count / limit
     if(num_of_pages > int(num_of_pages)):
@@ -178,22 +157,23 @@ def shop():
  
     # Close connection
     cur.close()
-
+    conn.close()
     return render_template('shop.html', product_rows = product_rows, num_of_pages=num_of_pages)
     
-@app.route('/shop/menrr')
+@app.route('/shop/men')
 def shop_men():
     limit = 12
     page = request.args.get('page', 1, type=int)
     
-    cur = mysql.connection.cursor()
+    ##cur = mysql.connection.cursor()
+    cur, conn = connection()
     query = "SELECT COUNT(*) FROM products WHERE prd_category = '%s' " % ("men")
     # app.logger.info(query)
     cur.execute(query)
     row = cur.fetchone()
     
-    product_count = row['COUNT(*)']
-
+    #product_count = row['COUNT(*)']
+    product_count = row[0]
     # for calculation of no of pages for pagination purpose
     num_of_pages = product_count / limit
     if(num_of_pages > int(num_of_pages)):
@@ -217,6 +197,7 @@ def shop_men():
  
     # Close connection
     cur.close()
+    conn.close()
 
     return render_template('shop-men.html', product_rows = product_rows, num_of_pages=num_of_pages)
 
@@ -225,14 +206,15 @@ def shop_women():
     limit = 12
     page = request.args.get('page', 1, type=int)
     
-    cur = mysql.connection.cursor()
+    #cur = mysql.connection.cursor()
+    cur, conn = connection()
     query = "SELECT COUNT(*) FROM products WHERE prd_category = '%s' " % ("women")
     # app.logger.info(query)
     cur.execute(query)
     row = cur.fetchone()
     
-    product_count = row['COUNT(*)']
-
+    #product_count = row['COUNT(*)']
+    product_count = row[0]
     # for calculation of no of pages for pagination purpose
     num_of_pages = product_count / limit
     if(num_of_pages > int(num_of_pages)):
@@ -256,7 +238,7 @@ def shop_women():
  
     # Close connection
     cur.close()
-
+    conn.close()
     return render_template('shop-women.html', product_rows = product_rows, num_of_pages=num_of_pages)
 
 @app.route('/shop/kids')
@@ -264,14 +246,15 @@ def shop_kids():
     limit = 12
     page = request.args.get('page', 1, type=int)
     
-    cur = mysql.connection.cursor()
+    #cur = mysql.connection.cursor()
+    cur, conn = connection()
     query = "SELECT COUNT(*) FROM products WHERE prd_category = '%s' OR prd_category = '%s' " % ("boy","girl")
     # app.logger.info(query)
     cur.execute(query)
     row = cur.fetchone()
     
-    product_count = row['COUNT(*)']
-
+    #product_count = row['COUNT(*)']
+    product_count = row[0]
     # for calculation of no of pages for pagination purpose
     num_of_pages = product_count / limit
     if(num_of_pages > int(num_of_pages)):
@@ -294,26 +277,31 @@ def shop_kids():
         return render_template('shop-kids.html')
     # Close connection
     cur.close()
-
+    conn.close()
     return render_template('shop-kids.html', product_rows = product_rows, num_of_pages=num_of_pages)
 
 def get_all_products():
-    cur = mysql.connection.cursor()
+    cur, conn = connection()
+    #cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM products")
     products = cur.fetchall()
     cur.close()
+    conn.close()
     return products
 
 # RECOMMENDATION ENGINE IS CALLED HERE
 @app.route('/shop/products',methods=['GET','POST'])
 def shop_single():
-    article_no = request.args.get('prd')
+    #article_no = request.args.get('prd')
+    article_no = request.args.get('prd', default=None)
     session['prd'] = article_no
-    cur = mysql.connection.cursor()
+    cur, conn = connection()
+    #cur = mysql.connection.cursor()
     #cur.execute("SELECT * FROM products WHERE article_no = %s", [article_no])
     cur.execute("SELECT * FROM products, product_sizes WHERE products.article_no = %s AND products.article_no = product_sizes.article_no", [article_no])
     product = cur.fetchone()
     cur.close()
+    conn.close()
     recommendations = recommend(article_no, num=8)
     #app.logger.info(recommendations)
     return render_template('shop-single.html', product=product, recommendations=recommendations, products=get_all_products())
@@ -356,10 +344,12 @@ def display_cart():
     if 'cart' in session:
         # app.logger.info(prods)
         # app.logger.info(len(prods))
-        cur = mysql.connection.cursor()
+        cur, conn = connection()
+        #cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM products")
         products = cur.fetchall()
         cur.close()
+        conn.close()
     #app.logger.info('cart' in session)
         calculate_total_amount()
         return render_template('cart.html', products=products)
@@ -381,7 +371,8 @@ def prepare_order():
         prods = session['cart']
         # app.logger.info(prods)
         # app.logger.info(len(prods))
-        cur = mysql.connection.cursor()
+        cur, conn = connection()
+        #cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM products")
         products = cur.fetchall()
 
@@ -392,7 +383,7 @@ def prepare_order():
         if last_order_id == 0:
             cur.execute('INSERT INTO orders(order_status) VALUES(%s)',[status])
             last_order_id = cur.lastrowid # STORE THE LAST CREATED ORDER_ID SO MORE PRODUCTS CAN BE ADDED
-            mysql.connection.commit()
+            conn.commit()
         if last_order_id > 0:
             for product in products:
                 if product['article_no'] in prods:
@@ -407,13 +398,15 @@ def prepare_order():
                     cur.execute('INSERT INTO order_items(order_id, item, quantity, price) VALUES(%s,%s,%s,%s)',(
                         last_order_id, product['article_no'], quantity, product['prd_price']
                     ))
-                    mysql.connection.commit()
+                    conn.commit()
         cur.close()
+        conn.close()
 
 def calculate_total_amount():
      if 'cart' in session:
         prods = session['cart']
-        cur = mysql.connection.cursor()
+        #cur = mysql.connection.cursor()
+        cur, conn = connection()
         cur.execute("SELECT * FROM products")
         products = cur.fetchall()
         total_amount = 0
@@ -436,10 +429,12 @@ def checkout():
      if 'cart' in session:
         # app.logger.info(prods)
         # app.logger.info(len(prods))
-        cur = mysql.connection.cursor()
+        cur, conn = connection()
+        #cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM products")
         products = cur.fetchall()
         cur.close()
+        conn.close()
    # prepare_order()
         return render_template('checkout.html',products=products)
 
@@ -463,24 +458,25 @@ def register():
         email = form.email.data
         password = sha256_crypt.hash(str(form.password.data))
         user_type = 'customer'
-
+        image_path = "../static/uploads/default.jpg"
         already_registered = email_exists(email)
 
         # if the email is not already registered only then register
         if(already_registered <= 0):
             # Create cursor
-            cur = mysql.connection.cursor()
-
+            
+            #cur = mysql.connection.cursor()
+            cur, conn = connection()
             # Execute query
-            cur.execute("INSERT INTO users(name, email, password, user_type) VALUES(%s, %s, %s, %s)",
-            (name, email, password, user_type))
+            cur.execute("INSERT INTO users(name, email, password, user_type,image_path) VALUES(%s, %s, %s, %s, %s)",
+            (name, email, password, user_type,image_path))
 
             # Commit to DB
-            mysql.connection.commit()
+            conn.commit()
 
             # Close connection
             cur.close()
-
+            conn.close()
             flash('You are now registered and can log in', 'success')
             
             time.sleep(3)
@@ -512,11 +508,13 @@ def is_logged_in(f):
 # Check if email is already associated to an account
 def email_exists(email):
     # Create cursor
-    cur = mysql.connection.cursor()
+    cur, conn = connection()
+    #cur = mysql.connection.cursor()
     # Execute query
     result = cur.execute("SELECT * FROM users WHERE email = %s", [email])
     # Close connection
     cur.close()
+    conn.close()
     # app.logger.info(str(result))
     return result
 
@@ -554,7 +552,8 @@ def product_upload(file):
         return f
 
 def count_rows(tablename, condition="none"):
-    cur = mysql.connection.cursor()
+    cur, conn = connection()
+    #cur = mysql.connection.cursor()
     # Get users
     if condition == "none":
         query = "SELECT COUNT(*) FROM {table}".format(**dict(table=tablename))
@@ -567,6 +566,7 @@ def count_rows(tablename, condition="none"):
     # app.logger.info(row_count)
     # Close connection
     cur.close()
+    conn.close()
     return row_count
 
 
@@ -584,7 +584,8 @@ def admin_login():
         password_candidate = request.form['password']
 
         # Create cursor
-        cur = mysql.connection.cursor()
+        cur, conn = connection()
+        #cur = mysql.connection.cursor()
 
         # Execute query
         result = cur.execute("SELECT * FROM users WHERE email = %s", [email])
@@ -609,6 +610,7 @@ def admin_login():
                 return render_template('admin/login.html', error=error)
             # Close connection
             cur.close()
+            conn.close()
         else:
             error = 'Email not registered!'
             return render_template('admin/login.html', error=error)
@@ -669,18 +671,19 @@ def create_admin():
         # if the email is not already registered only then register
         if(already_registered <= 0):
             # Create cursor
-            cur = mysql.connection.cursor()
+            cur, conn = connection()
+            #cur = mysql.connection.cursor()
 
             # Execute query
             cur.execute("INSERT INTO users(name, email, password, user_type, image_path) VALUES(%s, %s, %s, %s, %s)",
             (name, email, password, user_type, image_path))
 
             # Commit to DB
-            mysql.connection.commit()
+            conn.commit()
 
             # Close connection
             cur.close()
-
+            conn.close()
             flash('Admin Created', 'success')
         else:
             flash('Email already registered! Please enter another email.', 'warning')
@@ -702,7 +705,8 @@ def users(page):
 
 def get_user_rows(user_type):
     # Create cursor
-    cur = mysql.connection.cursor()
+    cur, conn = connection()
+    #cur = mysql.connection.cursor()
 
     # Get users
     result = cur.execute("SELECT * FROM users WHERE user_type = %s", [user_type])
@@ -711,17 +715,19 @@ def get_user_rows(user_type):
     
     # Close connection
     cur.close()
-
+    conn.close()
     return result, user_rows
 
 # Delete an Admin
 @app.route('/users/delete/<id>')
 @is_logged_in
 def delete_admin(id):
-    cur = mysql.connection.cursor()
+    #cur = conn.cursor()
+    cur, conn = connection()
     cur.execute("DELETE FROM users WHERE user_type = 'admin' AND id = %s", [id])
-    mysql.connection.commit()
+    conn.commit()
     cur.close()
+    conn.close()
     flash('Admin deleted', 'success')
 
     return redirect(url_for('users', page='admin')) 
@@ -733,14 +739,14 @@ def delete_admin(id):
 #Pagination
 def paginate(page_num, limit):
     offset = 10
-    cur = mysql.connection.cursor()
-
+    #cur = mysql.connection.cursor()
+    cur, conn = connection()
     query = "SELECT COUNT(*) FROM PRODUCTS"
     cur.execute(query)
 
     row = cur.fetchone()
-    product_count = row['COUNT(*)']
-
+    #product_count = row['COUNT(*)']
+    product_count = row[0]
     if(product_count >= 0):
         if(product_count > limit):
             offset = page_num * offset
@@ -748,7 +754,7 @@ def paginate(page_num, limit):
     
         cur.execute(query)
     cur.close()
-
+    conn.close()
 
 @app.route('/admin/products/display')
 @is_logged_in
@@ -756,13 +762,14 @@ def products():
     limit = 10
     page = request.args.get('page', 1, type=int)
     
-    cur = mysql.connection.cursor()
+    #cur = mysql.connection.cursor()
+    cur, conn = connection()
     query = "SELECT COUNT(*) FROM PRODUCTS"
     cur.execute(query)
     row = cur.fetchone()
     
-    product_count = row['COUNT(*)']
-
+    #product_count = row['COUNT(*)']
+    product_count = row[0]
     # for calculation of no of pages for pagination purpose
     num_of_pages = product_count / limit
     if(num_of_pages > int(num_of_pages)):
@@ -786,7 +793,7 @@ def products():
  
     # Close connection
     cur.close()
-
+    conn.close()
     return render_template('admin/productsdisplay.html', product_rows = product_rows, num_of_pages=num_of_pages)
 
 class ProductForm(Form):
@@ -843,7 +850,8 @@ def add_product():
             image_path = "../../" + str(image_path)
             # app.logger.info(image_path)
 
-        cur = mysql.connection.cursor()
+        #cur = mysql.connection.cursor()
+        cur, conn = connection()
 
         # Execute query
         cur.execute("INSERT INTO products(article_no,prd_name, prd_description, prd_type, prd_category ,prd_price,prd_min_price, image_path) VALUES(%s, %s, %s, %s, %s)",
@@ -853,11 +861,11 @@ def add_product():
         (article_no, size_s, size_m, size_l, size_xl))
 
             # Commit to DB
-        mysql.connection.commit()
+        conn.commit()
 
         # Close connection
         cur.close()
-
+        conn.close()
         flash('Product Added', 'success')
 
     return render_template('admin/productsadd.html', form = form)
@@ -1031,10 +1039,12 @@ def create_offer(min_acceptable_price,original_price,bot_offer_count,user_offer,
             return round(int(bot_offer), -2)
         
 def get_product_info(article_no):
-    cur = mysql.connection.cursor()
+    #cur = mysql.connection.cursor()
+    cur, conn = connection()
     cur.execute("SELECT prd_price, prd_min_price FROM products WHERE article_no = %s", [article_no])
     product = cur.fetchone()
     cur.close()
+    conn.close()
     return product['prd_price'], product['prd_min_price']
 
 def response(sentence, userID, min_acceptable_price,user_offer, original_price, show_details=False):
